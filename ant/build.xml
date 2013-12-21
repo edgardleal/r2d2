@@ -35,6 +35,7 @@
 	</target>
 
 	<target name="resolve" description="--> retrieve dependencies with ivy">
+                <echo >${ant.home}</echo>
 		<ivy:settings id="ivy.normal.settings" file="${basedir}/ant/settings.xml" />
 		<ivy:retrieve settingsRef="ivy.normal.settings" file="${basedir}/ant/ivy.xml" />
 	</target>
