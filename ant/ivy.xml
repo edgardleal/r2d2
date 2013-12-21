@@ -1,0 +1,13 @@
+<ivy-module version="2.0"> 
+	<info organisation="org.apache" module="hello-ivy"/> 
+	<dependencies> 
+		<dependency org="commons-lang" name="commons-lang" rev="2.0"/> 
+	 	<dependency org="br.com.caelum" name="vraptor" rev="3.5.3"/>
+		<dependency org="org.apache.derby" name="derby" rev="10.10.1.1"/>
+		<dependency org="opensymphony" name="sitemesh" rev="2.4.2"/>
+                                                
+                <!--<exclude org="org.hibernate" />-->
+                <exclude org="org.springframework" />
+                <exclude org="jboss" />
+	</dependencies> 
+</ivy-module> 

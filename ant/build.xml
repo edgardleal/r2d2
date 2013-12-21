@@ -1,0 +1,420 @@
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="R2D2" basedir="../" default="atualizar">
+	<property name="project.distname" value="r2d2" />
+
+	<!-- define your folder for deployment -->
+	<!--
+	<property name="server.dir" value=" ${env.JBOSS_HOME}_completo" />
+	-->
+	<property environment="env" />
+	<property name="server.dir" value="/home/edgardleal/app/jboss-as-7.1.1.Final_completo/" />
+	<property name="deploy.dir" value="${server.dir}\standalone\deployments\" />
+
+	<!-- Local system paths -->
+	<property name="webroot.dir" value="${basedir}/WebContent" />
+	<property name="webinf.dir" value="${webroot.dir}/WEB-INF" />
+	<property name="build.dir" value="${user.home}/temp" />
+	<property name="source.dir" value="${basedir}/src" />
+	<property name="proxy.host" value="127.0.0.1" />
+	<property name="lib.dir" value="${webinf.dir}/lib" />
+	
+	<property name="ivy.lib.dir" value="${lib.dir}" />
+	
+	<target name="probe-proxy">
+		<condition property="host.disponivel">
+			<not>
+				<isreachable host="${proxy.host}" />
+			</not>
+		</condition>
+
+		<condition property="proxy.enabled">
+			<and>
+				<isset property="proxy.host" />
+				<isreachable host="${proxy.host}" />
+			</and>
+		</condition>
+	</target>
+
+	<target name="resolve" description="--> retrieve dependencies with ivy">
+		<ivy:settings id="ivy.normal.settings" file="${basedir}/ant/settings.xml" />
+		<ivy:retrieve settingsRef="ivy.normal.settings" file="${basedir}/ant/ivy.xml" />
+	</target>
+
+
+	<target name="proxy" depends="probe-proxy" if="proxy.enabled">
+		<echo>Configurando o proxy...</echo>
+		<property name="proxy.port" value="8080" />
+		<property name="proxy.user" value="123" />
+		<property name="proxy.pass" value="" />
+		<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
+	</target>
+
+	<target name="verificar_dependencias">
+		<condition property="dependencia.nao.existe">
+			<not>
+				<available file="${user.home}/lib_ant/apache-ant-1.8.2.jar" property="">
+				</available>
+			</not>
+		</condition>
+	</target>
+
+	<target name="baixar_dependencias" depends="verificar_dependencias" if="dependencia.nao.existe">
+		<antcall target="proxy" />
+		<echo>Verificando o diretorio ${user.home}/lib_ant/</echo>
+		<mkdir dir="${user.home}/lib_ant/" />
+		<get dest="${user.home}/lib_ant/" src="http://www.java2s.com/Code/JarDownload/apache/apache-ant-1.8.2.jar.zip" />
+
+		<unzip dest="${user.home}/lib_ant/" src="${user.home}/lib_ant/apache-ant-1.8.2.jar.zip">
+		</unzip>
+	</target>
+
+	<path id="classpath">
+		<fileset dir="${webinf.dir}\lib" includes="*.jar" />
+
+		<fileset dir="${server.dir}\standalone\lib">
+			<include name="*.jar" />
+		</fileset>
+	</path>
+
+	<path id="server.classPath">
+		<fileset dir="${server.dir}\standalone\lib">
+			<include name="*.jar_" />
+		</fileset>
+
+		<zipfileset excludes="META-INF/*.SF" includes="*.jar" dir="${server.dir}/modules">
+
+		</zipfileset>
+
+	</path>
+
+	<path id="classpathLocal" refid="classpath">
+	</path>
+
+
+	<target name="Instrucoes">
+		<echo message="prepare: verifica a existencia das pastas e configura o formato de data" />
+		<echo message="Testes: Executa os testes unitários e gera os relatórios de testes" />
+		<echo message="Resources: Copia os arquivos de recursos para a pasta [${build.dir}]" />
+		<echo message="compile: Compila todas as classe na pasta [${webinf.dir}\classes]" />
+		<echo message="atualizar: Copia os arquivos que não precisam ser compilados para a pasta do servidor" />
+	</target>
+
+	<target name="createDeployDir">
+
+		<mkdir dir="${deploy.dir}\${project.distname}" />
+	</target>
+
+	<target name="copyDeploy">
+		<delete file="${deploy.dir}\${project.distname}.war">
+		</delete>
+		<copy todir="${deploy.dir}\${project.distname}.war">
+			<fileset dir="${webroot.dir}">
+				<exclude name="**\src\*" />
+				<exclude name="\reports\*.jrxml" />
+				<exclude name="/selenium/**/*.*" />
+				<include name="**\*.*" />
+			</fileset>
+		</copy>
+		<delete file="${deploy.dir}\${project.distname}.war.deploy">
+		</delete>
+		<touch file="${deploy.dir}\${project.distname}.war.deploy">
+		</touch>
+	</target>
+
+	<target name="atualizar">
+		<echo> *********  Atualizar ********</echo>
+		<echo>
+		</echo>
+		<echo> Este comando irá recompilar e republicar a aplicação</echo>
+		<antcall target="compile" />
+
+		<antcall target="vraptor-scanning" />
+		<echo>${project.distname}</echo>
+		<mkdir dir="${deploy.dir}/${project.distname}.war" />
+		<copy todir="${deploy.dir}/${project.distname}.war">
+			<fileset dir="${webroot.dir}">
+				<include name="**/*" />
+			</fileset>
+		</copy>
+		<touch file="${deploy.dir}/${project.distname}.war.dodeploy">
+		</touch>
+
+	</target>
+
+	<!-- Check timestamp on files -->
+	<target name="prepare">
+		<available property="classPath.present.Logger" classname="org.jboss.logging.Logger" />
+		<available property="classPath.present.Persistence" classname="javax.persistence.Transient" />
+
+		<tstamp>
+			<format pattern="dd/MM/yyyy" locale="pt,BR" property="currTime" />
+		</tstamp>
+	</target>
+
+	<target name="compress" description="Comprime os arquivos de css e javascript">
+		<delete dir="${basedir}/WebContent/style/mini/">
+			<include name="*.css" />
+		</delete>
+		<delete dir="${basedir}/WebContent/script/mini/">
+			<include name="*.js" />
+		</delete>
+		<apply executable="java" parallel="false">
+			<fileset dir="${basedir}/WebContent/style/" includes="*.css">
+			</fileset>
+			<arg value="-jar" />
+			<arg path="${webinf.dir}/lib/htmlcompressor-1.5.3.jar" />
+			<srcfile />
+			<arg value="--compress-css" />
+			<arg value="-o" />
+			<mapper type="glob" from="*" to="${basedir}/WebContent/style/mini/*" />
+			<targetfile />
+		</apply>
+		<apply executable="java" parallel="false">
+			<fileset dir="${basedir}/WebContent/script/" includes="*.js">
+				<exclude name="**/escreva aqui o que nao sera comprimido/**" />
+			</fileset>
+			<arg value="-jar" />
+			<arg path="${webinf.dir}/lib/htmlcompressor-1.5.3.jar" />
+			<arg value="--compress-js" />
+			<arg value="--nomunge" />
+			<arg value="--preserve-semi" />
+			<arg value="--disable-optimizations" />
+			<arg value="--preserve-server-script" />
+			<arg line="--closure-opt-level simple" />
+
+			<srcfile />
+			<arg value="-o" />
+			<mapper type="glob" from="*" to="${basedir}/WebContent/script/mini/*" />
+			<targetfile />
+		</apply>
+
+	</target>
+
+	<target name="Testes">
+		<junit description="teste unitário" fork="no" printsummary="yes" haltonerror="true" haltonfailure="true" showoutput="true">
+
+			<classpath refid="classpath" />
+			<classpath refid="server.classPath" />
+			<classpath>
+				<pathelement location="${server.dir}/standalone/lib/*.jar" />
+				<pathelement location="${webinf.dir}/lib/junit.jar" />
+				<pathelement location="${webinf.dir}/lib/*.jar" />
+				<pathelement location="${webinf.dir}/lib/org.springframework.jdbc-3.0.5.RELEASE.jar" />
+				<pathelement location="${webinf.dir}/lib/log4j-1.2.16.jar" />
+				<pathelement location="${webinf.dir}/lib/commons-dbcp-1.1.jar" />
+				<pathelement location="${webinf.dir}/classes/" />
+				<pathelement location="${build.dir}" />
+			</classpath>
+			<formatter usefile="false" type="brief" />
+
+			<batchtest fork="no" todir="${build.dir}">
+				<fileset dir="${basedir}/src/test/java">
+					<include name="**/*Test.java" />
+					<exclude name="**/AllTests.java" />
+				</fileset>
+			</batchtest>
+		</junit>
+	</target>
+
+	<!-- Copy any resource or configuration files -->
+	<target name="resources">
+		<copy todir="${build.dir}" includeEmptyDirs="no">
+			<fileset dir="src/main/java">
+				<patternset>
+					<include name="**/*.conf" />
+					<include name="**/*.properties" />
+					<include name="**/*._xml" />
+				</patternset>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="verificarAlteracoes">
+		<uptodate property="alteracaoJava" targetfile="${build.dir}/${project.distname}.war">
+			<srcfiles dir="${source.dir}" includes="**/*.java" />
+		</uptodate>
+		<uptodate property="alteracaoWeb" targetfile="${build.dir}/${project.distname}.war">
+			<srcfiles dir="${webroot.dir}">
+				<include name="/script/**/*.js" />
+				<include name="/style/**/*.css" />
+				<include name="**/*.html" />
+				<include name="/WEB-INF/jsp/**/*.jsp" />
+			</srcfiles>
+			<srcfiles dir="${source.dir}">
+				<include name="**/*.java" />
+			</srcfiles>
+		</uptodate>
+	</target>
+
+	<!-- Normal build of application -->
+	<target name="compile" depends="prepare,resources,verificarAlteracoes" unless="--alteracaoJava">
+		<echo>WEB-INF: ${webinf.dir}</echo>
+		<echo>BuildDir: ${build.dir}</echo>
+		<echo>ServerDir: ${server.dir}</echo>
+
+		<condition property="isSourcePresent">
+			<and>
+				<available file="${source.dir}" property="d" />
+				<available file="${server.dir}" />
+			</and>
+		</condition>
+
+		<fail message="Fontes não encontrados" unless="isSourcePresent" />
+
+		<!-- <antcall target="resolve" /> -->
+		<echo message="Compilando... " />
+		<echo message="Origem: ${source.dir} " />
+		<echo message="Destino: ${webinf.dir}\classes " />
+
+		<javac srcdir="${source.dir}" destdir="${webinf.dir}\classes" debug="true" includeantruntime="true" source="1.7" target="1.7" classpathref="classpath">
+
+			<classpath refid="server.classPath" />
+			<!-- <classpath refid="classpathLocal">
+			</classpath>
+			 -->
+			<classpath>
+				<fileset dir="${webinf.dir}/lib">
+					<include name="*.jar" />
+				</fileset>
+			</classpath>
+			<compilerarg line="-g" />
+			<compilerarg line="-Xlint" />
+		</javac>
+
+	</target>
+
+	<!-- Remove classes directory for clean build -->
+	<target name="clean" description="Prepare for clean build">
+		<delete>
+			<fileset dir="${webinf.dir}/classes">
+				<exclude name="**\BackupBuilder.class" />
+				<exclude name="**\HtmlCompress.class" />
+				<include name="**\*.class" />
+			</fileset>
+		</delete>
+	</target>
+
+	<!-- Build entire project -->
+	<target name="build" depends="prepare,compile" />
+	<target name="rebuild" depends="clean,prepare,compile" />
+
+
+	<target name="vraptor-scanning" unless="altaracaoJava">
+		<path id="build.classpath">
+			<fileset dir="${webinf.dir}/lib" includes="*.jar" />
+		</path>
+
+		<java classpathref="build.classpath" classname="br.com.caelum.vraptor.scan.VRaptorStaticScanning" fork="true">
+			<arg value="${webinf.dir}/web.xml" />
+			<classpath refid="build.classpath" />
+			<classpath path="${build.dir}" />
+			<classpath path="${webinf.dir}\classes" />
+		</java>
+	</target>
+
+	<!-- Create binary distribution -->
+	<target name="war">
+		<antcall target="clean" />
+		<antcall target="compile" />
+		<antcall target="vraptor-scanning" />
+		<!--
+		<delete file="${build.dir}/${project.distname}.war" />
+		 <mkdir dir="${build.dir}" /> -->
+		<war basedir="${webroot.dir}" warfile="${build.dir}/${project.distname}.war" webxml="${webinf.dir}/web.xml" update="true" description="">
+			<lib dir="${webinf.dir}/lib/" >
+			   <exclude name="*sources.jar" />
+			   <exclude name="*javadoc.jar" />
+			</lib>
+			<classes dir="${webinf.dir}/classes/" />
+
+			<fileset dir="${webroot.dir}">
+				<include name="**/*.js" />
+				<include name="**/*.png" />
+				<include name="**/*.gif" />
+				<exclude name="**/.svn/**" />
+				<exclude name="**/.cvs/**" />
+				<exclude name="**/.git/**" />
+				<include name="src/**/*.xml" />
+				<exclude name="src/**/*.java" />
+			</fileset>
+			<exclude name="${webinf.dir}/web.xml" />
+		</war>
+
+	</target>
+
+	<target name="deploy" depends="war">
+
+		<antcall target="copyWar">
+		</antcall>
+	</target>
+
+	<target name="copyWar">
+		<delete dir="${deploy.dir}/${project.distname}.war" failonerror="false">
+		</delete>
+		<echo message="${build.dir}/${project.distname}.war">
+		</echo>
+		<copy file="${build.dir}/${project.distname}.war" todir="${deploy.dir}" />
+		<echo>Arquivo copiado para:
+		${deploy.dir}</echo>
+
+	</target>
+
+	<target name="git">
+		<regexp />
+		<input message="Digite a mensagem do log:" addproperty="message">
+		</input>
+		<echo message="${message}">
+		</echo>
+		<exec executable="git">
+			<arg value="commit" />
+			<arg value="-am" />
+			<arg value="&quot;${message}&quot;" />
+		</exec>
+	</target>
+
+
+	<target name="refresh">
+		<antcall target="build">
+		</antcall>
+		<antcall target="copyWar">
+		</antcall>
+	</target>
+
+	<target name="finalBuilder">
+		<echo>
+*********** Compilação final para publicação em produção ********** 
+            ============================================
+		</echo>
+
+		<echo>
+		</echo>
+
+		<!--
+		<backup src="${webroot.dir}/" dest="${user.home}/" />
+		<backup src="${webroot.dir}/style/" dest="${user.home}/" />
+		<backup src="${webinf.dir}/jsp/" dest="${user.home}/" />
+		<comprimir folder="${webinf.dir}/jsp/" />
+        -->
+		<mkdir dir="${user.home}/ant_tmp/script/" />
+		<copy todir="${user.home}/ant_tmp/script/" encoding="utf-8" verbose="true" overwrite="true" preservelastmodified="false">
+			<fileset dir="${webroot.dir}/script/" id="id">
+				<include name="**/*.js" />
+				<exclude name="**/CVS/*" />
+			</fileset>
+		</copy>
+		<comprimir folder="${webroot.dir}/script/" />
+		<antcall target="baixar_dependencias" />
+		<antcall target="compile" />
+		<antcall target="war" />
+		<copy todir="${webroot.dir}/script/" preservelastmodified="true" verbose="true" overwrite="true">
+			<fileset dir="${user.home}/ant_tmp/script/" id="id2">
+				<include name="**/*.js" />
+				<exclude name="**/CVS/*" />
+			</fileset>
+		</copy>
+
+		<sleep seconds="3" />
+		<antcall target="copyWar">
+		</antcall>
+	</target>
+
+</project>

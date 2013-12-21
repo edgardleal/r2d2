@@ -1,0 +1,7 @@
+<ivysettings>
+  <settings defaultResolver='nexus'/>
+  <resolvers>
+    <!--<ibiblio name='nexus' m2compatible='true' root='http://localhost:8080/r2d2/repository/' />-->
+    <ibiblio name='nexus' m2compatible='true' root='http://10.3.7.17:8085/r2d2/repository/' />
+  </resolvers>
+</ivysettings>
