@@ -3,17 +3,16 @@
 
 	<!-- define your folder for deployment -->
 	<!--
-	<property name="server.dir" value=" ${env.JBOSS_HOME}_completo" />
 	-->
 	<property environment="env" />
-	<property name="server.dir" value="/home/edgardleal/app/jboss-as-7.1.1.Final_completo/" />
-	<property name="deploy.dir" value="${server.dir}\standalone\deployments\" />
+	<property name="server.dir" value="${env.JBOSS_HOME}" />
+	<property name="deploy.dir" value="${server.dir}/standalone/deployments/" />
 
 	<!-- Local system paths -->
 	<property name="webroot.dir" value="${basedir}/WebContent" />
 	<property name="webinf.dir" value="${webroot.dir}/WEB-INF" />
 	<property name="build.dir" value="${user.home}/temp" />
-	<property name="source.dir" value="${basedir}/src" />
+	<property name="source.dir" value="${basedir}/src/main/java" />
 	<property name="proxy.host" value="127.0.0.1" />
 	<property name="lib.dir" value="${webinf.dir}/lib" />
 	
@@ -35,7 +34,13 @@
 	</target>
 
 	<target name="resolve" description="--> retrieve dependencies with ivy">
-                <echo >${ant.home}</echo>
+        <echo >${ant.home}</echo>
+		<ivy:settings id="ivy.normal.settings" file="${basedir}/ant/settings.xml" />
+		<ivy:retrieve settingsRef="ivy.normal.settings" file="${basedir}/ant/ivy.xml" />
+	</target>
+	
+	<target name="conditional.resolve" description="--> retrieve dependencies with ivy if libs not found" if="libs.not.exits">
+        <echo >${ant.home}</echo>
 		<ivy:settings id="ivy.normal.settings" file="${basedir}/ant/settings.xml" />
 		<ivy:retrieve settingsRef="ivy.normal.settings" file="${basedir}/ant/ivy.xml" />
 	</target>
@@ -69,22 +74,20 @@
 	</target>
 
 	<path id="classpath">
-		<fileset dir="${webinf.dir}\lib" includes="*.jar" />
+		<fileset dir="${webinf.dir}/lib" includes="*.jar" />
 
-		<fileset dir="${server.dir}\standalone\lib">
+		<fileset dir="${server.dir}/standalone\lib">
 			<include name="*.jar" />
 		</fileset>
 	</path>
 
 	<path id="server.classPath">
-		<fileset dir="${server.dir}\standalone\lib">
-			<include name="*.jar_" />
+		<fileset dir="${server.dir}/standalone/lib">
+			<include name="*.jar" />
 		</fileset>
 
 		<zipfileset excludes="META-INF/*.SF" includes="*.jar" dir="${server.dir}/modules">
-
 		</zipfileset>
-
 	</path>
 
 	<path id="classpathLocal" refid="classpath">
@@ -95,29 +98,29 @@
 		<echo message="prepare: verifica a existencia das pastas e configura o formato de data" />
 		<echo message="Testes: Executa os testes unitários e gera os relatórios de testes" />
 		<echo message="Resources: Copia os arquivos de recursos para a pasta [${build.dir}]" />
-		<echo message="compile: Compila todas as classe na pasta [${webinf.dir}\classes]" />
+		<echo message="compile: Compila todas as classe na pasta [${webinf.dir}/classes]" />
 		<echo message="atualizar: Copia os arquivos que não precisam ser compilados para a pasta do servidor" />
 	</target>
 
 	<target name="createDeployDir">
 
-		<mkdir dir="${deploy.dir}\${project.distname}" />
+		<mkdir dir="${deploy.dir}/${project.distname}" />
 	</target>
 
 	<target name="copyDeploy">
-		<delete file="${deploy.dir}\${project.distname}.war">
+		<delete file="${deploy.dir}/${project.distname}.war">
 		</delete>
-		<copy todir="${deploy.dir}\${project.distname}.war">
+		<copy todir="${deploy.dir}/${project.distname}.war">
 			<fileset dir="${webroot.dir}">
-				<exclude name="**\src\*" />
-				<exclude name="\reports\*.jrxml" />
+				<exclude name="**/src\*" />
+				<exclude name="/reports\*.jrxml" />
 				<exclude name="/selenium/**/*.*" />
-				<include name="**\*.*" />
+				<include name="**/*.*" />
 			</fileset>
 		</copy>
-		<delete file="${deploy.dir}\${project.distname}.war.deploy">
+		<delete file="${deploy.dir}/${project.distname}.war.deploy">
 		</delete>
-		<touch file="${deploy.dir}\${project.distname}.war.deploy">
+		<touch file="${deploy.dir}/${project.distname}.war.deploy">
 		</touch>
 	</target>
 
@@ -251,29 +254,23 @@
 		<echo>WEB-INF: ${webinf.dir}</echo>
 		<echo>BuildDir: ${build.dir}</echo>
 		<echo>ServerDir: ${server.dir}</echo>
+		<echo>Sources: ${source.dir}</echo>
+		<echo>Current dir: ${basedir}</echo>
+		<echo message="Target: ${webinf.dir}/classes " />
+		<echo message="Compiling... " />
 
-		<condition property="isSourcePresent">
-			<and>
-				<available file="${source.dir}" property="d" />
-				<available file="${server.dir}" />
-			</and>
+		<condition property="lib.not.exists">
+		   <not>
+			<available file="${webinf.dir}/libasm*.jar" />
+		   </not>
 		</condition>
-
-		<fail message="Fontes não encontrados" unless="isSourcePresent" />
-
-		<!-- <antcall target="resolve" /> -->
-		<echo message="Compilando... " />
-		<echo message="Origem: ${source.dir} " />
-		<echo message="Destino: ${webinf.dir}\classes " />
-
-		<javac srcdir="${source.dir}" destdir="${webinf.dir}\classes" debug="true" includeantruntime="true" source="1.7" target="1.7" classpathref="classpath">
-
+		
+		<antcall target="conditional.resolve" />
+		
+		<javac srcdir="${source.dir}" destdir="${webinf.dir}/classes" debug="true" includeantruntime="true" source="1.7" target="1.7" classpathref="classpath" >
 			<classpath refid="server.classPath" />
-			<!-- <classpath refid="classpathLocal">
-			</classpath>
-			 -->
 			<classpath>
-				<fileset dir="${webinf.dir}/lib">
+				<fileset dir="${webinf.dir}/lib/">
 					<include name="*.jar" />
 				</fileset>
 			</classpath>
@@ -287,12 +284,30 @@
 	<target name="clean" description="Prepare for clean build">
 		<delete>
 			<fileset dir="${webinf.dir}/classes">
-				<exclude name="**\BackupBuilder.class" />
-				<exclude name="**\HtmlCompress.class" />
-				<include name="**\*.class" />
+				<exclude name="**/BackupBuilder.class" />
+				<exclude name="**/HtmlCompress.class" />
+				<include name="**/*.class" />
 			</fileset>
+   			<fileset dir="${webinf.dir}/lib">
+				<include name="*.jar" />
+ 			</fileset>
 		</delete>
 	</target>
+  
+        <target name="cleanJBoss">
+		<delete includeEmptyDirs="true">
+			<fileset dir="${server.dir}/standalone/data/" >
+			</fileset>
+			<fileset dir="${server.dir}/standalone/tmp/"  >
+			</fileset>
+			<fileset dir="${server.dir}/standalone/deployments/" >
+			</fileset>
+		</delete>
+		<mkdir dir="${server.dir}/standalone/data"/>
+		<mkdir dir="${server.dir}/standalone/tmp"/>
+		<mkdir dir="${server.dir}/standalone/deployments"/>
+
+ 	</target>
 
 	<!-- Build entire project -->
 	<target name="build" depends="prepare,compile" />
@@ -308,13 +323,12 @@
 			<arg value="${webinf.dir}/web.xml" />
 			<classpath refid="build.classpath" />
 			<classpath path="${build.dir}" />
-			<classpath path="${webinf.dir}\classes" />
+			<classpath path="${webinf.dir}/classes" />
 		</java>
 	</target>
 
 	<!-- Create binary distribution -->
 	<target name="war">
-		<antcall target="clean" />
 		<antcall target="compile" />
 		<antcall target="vraptor-scanning" />
 		<!--
