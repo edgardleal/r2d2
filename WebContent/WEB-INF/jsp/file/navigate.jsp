@@ -12,8 +12,7 @@
 				   class="active"
 				</c:if>><a
 						href="<c:url value="/file"/>${current}/${p}/">${p }</a></li>
-					<c:set var="current" value="${current }/${p }">
-					</c:set>
+					<c:set var="current" value="${current }${p }/" />
 				</c:forEach>
 			</ol>
 

@@ -36,14 +36,14 @@
 <script>
    onload(function(){
       $('#tabMaven').click(function(){
-        $('li').removeClass('li');
+        $('li').removeClass('active');
         $(this).addClass("active");
         $('#codeIvy').hide();
         $('#codeMaven').show();
       });
 
       $('#tabIvy').click(function(){
-          $('li').removeClass('li');
+          $('li').removeClass('active');
           $(this).addClass("active");
           $('#codeMaven').hide();
           $('#codeIvy').show();
